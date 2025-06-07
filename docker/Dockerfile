@@ -24,6 +24,11 @@ ENV NODE_OPTIONS ${NODE_OPTIONS}
 
 ENV BUNDLE_PATH="/gems"
 
+# Definir variáveis necessárias para asset precompilation
+ENV RAILS_LOG_TO_STDOUT=true
+ENV SECRET_KEY_BASE=dummy_secret_for_precompile_only
+ENV DATABASE_URL=postgresql://dummy:dummy@localhost/dummy
+
 RUN apk update && apk add --no-cache \
   openssl \
   tar \
@@ -71,39 +76,46 @@ RUN if [ "$RAILS_ENV" = "production" ]; then \
   else bundle install -j 4 -r 3; \
   fi
 
+# Copiar e instalar dependências JavaScript
 COPY package.json pnpm-lock.yaml ./
-RUN pnpm i
+RUN pnpm i --frozen-lockfile
 
+# Copiar código da aplicação
 COPY . /app
 
 # creating a log directory so that image wont fail when RAILS_LOG_TO_STDOUT is false
 # https://github.com/chatwoot/chatwoot/issues/701
 RUN mkdir -p /app/log
 
-# Adicione estas linhas antes do RUN bundle exec rake assets:precompile
-ENV RAILS_ENV=production
-ENV NODE_ENV=production
-ENV SECRET_KEY_BASE=dummy_secret_for_precompile
-ENV DATABASE_URL=postgresql://dummy:dummy@localhost/dummy
+# REMOVER ESTAS LINHAS PROBLEMÁTICAS - elas estão causando conflito
+# ENV RAILS_ENV=production (já definido acima)
+# ENV NODE_ENV=production (não necessário para Alpine)
+# ENV SECRET_KEY_BASE=dummy_secret_for_precompile (já definido acima)
+# ENV DATABASE_URL=postgresql://dummy:dummy@localhost/dummy (já definido acima)
 
-# Instale o Node.js se necessário
-RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && \
-    apt-get install -y nodejs
+# REMOVER - curl/nodejs já instalado via COPY do node image
+# RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && \
+#     apt-get install -y nodejs
 
 # generate production assets if production environment
 RUN if [ "$RAILS_ENV" = "production" ]; then \
-  SECRET_KEY_BASE=precompile_placeholder RAILS_LOG_TO_STDOUT=enabled bundle exec rake assets:precompile \
+  RAILS_ENV=production \
+  NODE_ENV=production \
+  SECRET_KEY_BASE=dummy_secret_for_precompile_only \
+  DATABASE_URL=postgresql://dummy:dummy@localhost/dummy \
+  RAILS_LOG_TO_STDOUT=true \
+  bundle exec rake assets:precompile --trace \
   && rm -rf spec node_modules tmp/cache; \
   fi
 
 # Generate .git_sha file with current commit hash
-RUN git rev-parse HEAD > /app/.git_sha
+RUN if [ -d ".git" ]; then git rev-parse HEAD > /app/.git_sha; else echo "no-git" > /app/.git_sha; fi
 
 # Remove unnecessary files
 RUN rm -rf /gems/ruby/3.4.0/cache/*.gem \
   && find /gems/ruby/3.4.0/gems/ \( -name "*.c" -o -name "*.o" \) -delete \
   && rm -rf .git \
-  && rm .gitignore
+  && rm -f .gitignore
 
 # final build stage
 FROM ruby:3.4.4-alpine3.21
