@@ -98,16 +98,18 @@ RUN mkdir -p /app/log
 #     apt-get install -y nodejs
 
 # generate production assets if production environment
-RUN if [ "$RAILS_ENV" = "production" ]; then \
-  RAILS_ENV=production \
-  NODE_ENV=production \
-  SECRET_KEY_BASE=dummy_secret_for_precompile_only \
-  DATABASE_URL=postgresql://dummy:dummy@localhost/dummy \
-  RAILS_LOG_TO_STDOUT=true \
-  bundle exec rake assets:precompile --trace \
-  && rm -rf spec node_modules tmp/cache; \
-  fi
+# Definir variáveis necessárias
+ENV SECRET_KEY_BASE=dummy_secret_for_precompile_12345
+ENV DATABASE_URL=postgresql://dummy:dummy@localhost/dummy
+ENV RAILS_LOG_TO_STDOUT=true
 
+# Precompilar assets com debug
+RUN RAILS_ENV=production \
+    NODE_ENV=production \
+    SECRET_KEY_BASE=dummy_secret_for_precompile_12345 \
+    DATABASE_URL=postgresql://dummy:dummy@localhost/dummy \
+    RAILS_LOG_TO_STDOUT=true \
+    bundle exec rake assets:precompile --trace
 # Generate .git_sha file with current commit hash
 RUN if [ -d ".git" ]; then git rev-parse HEAD > /app/.git_sha; else echo "no-git" > /app/.git_sha; fi
 
