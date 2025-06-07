@@ -80,6 +80,16 @@ COPY . /app
 # https://github.com/chatwoot/chatwoot/issues/701
 RUN mkdir -p /app/log
 
+# Adicione estas linhas antes do RUN bundle exec rake assets:precompile
+ENV RAILS_ENV=production
+ENV NODE_ENV=production
+ENV SECRET_KEY_BASE=dummy_secret_for_precompile
+ENV DATABASE_URL=postgresql://dummy:dummy@localhost/dummy
+
+# Instale o Node.js se necessário
+RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && \
+    apt-get install -y nodejs
+
 # generate production assets if production environment
 RUN if [ "$RAILS_ENV" = "production" ]; then \
   SECRET_KEY_BASE=precompile_placeholder RAILS_LOG_TO_STDOUT=enabled bundle exec rake assets:precompile \
